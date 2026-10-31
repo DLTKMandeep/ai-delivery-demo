@@ -134,7 +134,7 @@ bold "7/9  Argo CD and Argo Rollouts"
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 kubectl apply -n argocd --server-side --force-conflicts -f "$ARGOCD_MANIFEST" >/dev/null
 kubectl create namespace argo-rollouts --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-kubectl apply -n argo-rollouts -f "$ROLLOUTS_MANIFEST" >/dev/null
+kubectl apply -n argo-rollouts --server-side --force-conflicts -f "$ROLLOUTS_MANIFEST" >/dev/null
 echo "  Waiting for Argo CD and Argo Rollouts to start (a few minutes the first time)..."
 kubectl -n argocd rollout status deploy/argocd-server --timeout=300s >/dev/null
 kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=300s >/dev/null
