@@ -17,7 +17,7 @@ spec:
         - name: ghcr
       containers:
         - name: web
-          image: nginx:1.27-alpine
+          image: ghcr.io/dltkmandeep/ai-delivery-demo:9218ce5cbc0b83e9aefa6c93cfd897be75e6baea
           ports:
             - containerPort: 80
           readinessProbe:
