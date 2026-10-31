@@ -16,18 +16,20 @@ jobs:
       - uses: actions/checkout@v4
       - name: Image name
         run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - name: Build and push
+      - name: Build and push (Intel and Apple Silicon)
         id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ env.IMAGE }}:${{ github.sha }}
       - uses: sigstore/cosign-installer@v3
       - name: Sign the image (keyless)
