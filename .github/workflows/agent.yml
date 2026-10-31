@@ -1,0 +1,78 @@
+name: Agent
+on:
+  repository_dispatch:
+    types: [jira-ready]
+  workflow_dispatch:
+    inputs:
+      key:
+        description: Jira issue key, e.g. PROJ-1
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: agent-${{ github.event.client_payload.key || inputs.key }}
+jobs:
+  story:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      KEY: ${{ github.event.client_payload.key || inputs.key }}
+      JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+      GH_TOKEN: ${{ secrets.AGENT_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.AGENT_PAT }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      - name: Read the story from Jira
+        run: |
+          curl -fsS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -H "Accept: application/json" \
+            "$JIRA_BASE_URL/rest/api/3/issue/$KEY?fields=summary,description" > "$RUNNER_TEMP/story.json"
+          echo "SUMMARY=$(jq -r '.fields.summary' "$RUNNER_TEMP/story.json")" >> "$GITHUB_ENV"
+          jq -r '[.fields.description | .. | .text? // empty] | join("\n")' "$RUNNER_TEMP/story.json" > "$RUNNER_TEMP/story.txt"
+          echo "--- story ---"; cat "$RUNNER_TEMP/story.txt"
+
+      - name: Let the agent write the code
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          git config user.name "ai-agent"
+          git config user.email "ai-agent@users.noreply.github.com"
+          git switch -c "agent/$KEY-$GITHUB_RUN_NUMBER"
+          PROMPT="Implement Jira story $KEY: $SUMMARY
+
+          $(cat "$RUNNER_TEMP/story.txt")
+
+          Follow CLAUDE.md. Write tests first, then the code. Run npm test and npm run typecheck until both pass. Do not commit."
+          claude -p "$PROMPT" --permission-mode acceptEdits --max-turns 40 \
+            --allowedTools "Read" "Edit" "Write" "Glob" "Grep" "Bash(npm test:*)" "Bash(npm run typecheck:*)" "Bash(npx vitest:*)"
+
+      - name: Verify
+        run: npm run typecheck && npm test
+
+      - name: Open the pull request
+        run: |
+          git add -A
+          if git diff --cached --quiet; then echo "The agent made no changes"; exit 1; fi
+          git commit -m "$KEY: $SUMMARY"
+          git push -u origin HEAD
+          URL=$(gh pr create --title "$KEY: $SUMMARY" --label ai-authored \
+            --body "Written by the AI agent for $KEY. Tests and typecheck passed in the agent run.")
+          echo "PR_URL=$URL" >> "$GITHUB_ENV"
+          echo "Opened $URL"
+
+      - name: Tell Jira
+        if: always() && env.KEY != ''
+        run: |
+          MSG="AI agent run ${{ job.status }}. ${PR_URL:-No pull request opened.} Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          jq -n --arg t "$MSG" '{body:{type:"doc",version:1,content:[{type:"paragraph",content:[{type:"text",text:$t}]}]}}' > "$RUNNER_TEMP/c.json"
+          curl -fsS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -H "Content-Type: application/json" \
+            -X POST --data @"$RUNNER_TEMP/c.json" "$JIRA_BASE_URL/rest/api/3/issue/$KEY/comment" > /dev/null || true

@@ -1,0 +1,9 @@
+# Read by scripts/risk.sh. One glob per line, after a level.
+high: .github/*
+high: deploy/*
+high: argocd/*
+high: scripts/*
+high: Dockerfile
+high: package.json
+high: package-lock.json
+medium_max_lines: 150

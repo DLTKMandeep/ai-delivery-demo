@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: smoke-test
+spec:
+  metrics:
+    - name: canary-answers
+      count: 3
+      interval: 10s
+      failureLimit: 1
+      provider:
+        job:
+          spec:
+            backoffLimit: 0
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: curl
+                    image: curlimages/curl:8.10.1
+                    command: ["sh", "-c", "curl -fsS -o /dev/null http://reports-canary/ && echo ok"]

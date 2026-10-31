@@ -1,0 +1,38 @@
+name: Risk policy
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  decide:
+    if: contains(github.event.pull_request.labels.*.name, 'ai-authored')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Score the change
+        id: risk
+        run: |
+          LEVEL=$(bash scripts/risk.sh "origin/${{ github.base_ref }}")
+          echo "level=$LEVEL" >> "$GITHUB_OUTPUT"
+          echo "Risk level: $LEVEL"
+      - name: Label it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          for l in risk:low risk:medium risk:high; do gh pr edit "$PR" --remove-label "$l" >/dev/null 2>&1 || true; done
+          gh pr edit "$PR" --add-label "risk:${{ steps.risk.outputs.level }}"
+      - name: Low risk, auto-merge when checks pass
+        if: steps.risk.outputs.level == 'low'
+        env:
+          GH_TOKEN: ${{ secrets.AGENT_PAT }}
+        run: gh pr merge "${{ github.event.pull_request.number }}" --auto --squash
+      - name: Otherwise, ask a human
+        if: steps.risk.outputs.level != 'low'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr comment "${{ github.event.pull_request.number }}" --body "Risk level **${{ steps.risk.outputs.level }}**. A human must review and merge this one."

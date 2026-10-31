@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: reports
+spec:
+  replicas: 4
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: reports
+  template:
+    metadata:
+      labels:
+        app: reports
+    spec:
+      imagePullSecrets:
+        - name: ghcr
+      containers:
+        - name: web
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+  strategy:
+    canary:
+      canaryService: reports-canary
+      stableService: reports-stable
+      steps:
+        - setWeight: 25
+        - analysis:
+            templates:
+              - templateName: smoke-test
+        - pause: { duration: 30s }
+        - setWeight: 50
+        - pause: { duration: 30s }
+        - setWeight: 75
+        - pause: { duration: 30s }
