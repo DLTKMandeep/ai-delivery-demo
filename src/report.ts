@@ -20,15 +20,3 @@ export function totalRevenue(rows: Row[]): number {
 export function formatCurrency(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 }
-
-function csvField(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-}
-
-export function toCsv(rows: Row[]): string {
-  const header = 'Region,Rep,Deals,Revenue';
-  const lines = rows.map((r) =>
-    [csvField(r.region), csvField(r.rep), String(r.deals), String(r.revenue)].join(','),
-  );
-  return [header, ...lines].join('\n');
-}
