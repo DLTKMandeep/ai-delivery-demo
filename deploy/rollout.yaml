@@ -17,7 +17,7 @@ spec:
         - name: ghcr
       containers:
         - name: web
-          image: ghcr.io/dltkmandeep/ai-delivery-demo:7260857a3558e13cbd6b1a9d1a3c3ccea2a0a132
+          image: ghcr.io/dltkmandeep/ai-delivery-demo:d3cc67f750565e69d08084406aab17808967f03b
           ports:
             - containerPort: 80
           readinessProbe:
