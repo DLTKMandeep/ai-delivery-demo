@@ -1,11 +1,21 @@
 import { useState } from 'react';
-import { ROWS, filterByRegion, formatCurrency, totalRevenue } from './report';
+import { ROWS, filterByRegion, formatCurrency, toCsv, totalRevenue } from './report';
 
 const REGIONS = ['All', 'North', 'South', 'West'];
 
 export default function App() {
   const [region, setRegion] = useState('All');
   const rows = filterByRegion(ROWS, region);
+
+  const exportCsv = () => {
+    const blob = new Blob([toCsv(rows)], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sales-report.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <main className="page">
@@ -26,6 +36,7 @@ export default function App() {
             {r}
           </button>
         ))}
+        <button className="chip" onClick={exportCsv}>Export CSV</button>
       </div>
 
       <table className="table">
